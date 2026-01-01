@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+# Project specific (Local test data)
+store/
+dataset/
+*.log
