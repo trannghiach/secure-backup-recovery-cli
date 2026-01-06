@@ -8,7 +8,7 @@ import getpass
 from pathlib import Path
 from typing import Dict, Optional
 
-from sbackup.contracts import OpResult
+from ..contracts import OpResult
 
 # Import Interface
 from ..interfaces import ISecurity
@@ -16,7 +16,7 @@ from ..interfaces import ISecurity
 # Cấu hình đường dẫn (Hardcode tương đối)
 BASE_DIR = Path(__file__).parent.parent.parent.parent
 POLICY_PATH = BASE_DIR / 'policy.yaml'
-LOG_FILE_PATH = BASE_DIR / 'store' / 'audit.log'
+LOG_FILE_PATH = BASE_DIR / 'src' /'store' / 'audit.log'
 
 class SecurityManager:
     """
@@ -56,7 +56,7 @@ class SecurityManager:
 
     def load_policy(self, policy_path: str = None) -> OpResult:
         if policy_path is None:
-            policy_path = str(DEFAULT_POLICY_PATH)
+            policy_path = str(POLICY_PATH)
         
         if not os.path.exists(policy_path):
             return OpResult(success=False, message=f"Policy file not found at {policy_path}")
@@ -76,7 +76,6 @@ class SecurityManager:
         # Linux/Unix logic
         if system in ('Linux', 'Darwin'):
             try:
-                import pwd # what is this for?
                 current_uid = os.getuid()
                 sudo_user = os.environ.get('SUDO_USER')
                 if sudo_user: return sudo_user

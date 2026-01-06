@@ -4,8 +4,8 @@ import time
 import hashlib
 from pathlib import Path
 from typing import List, Dict, Any
-from sbackup.contracts import OpResult
-from sbackup.core.utils import compute_merkle_root
+from ..contracts import OpResult, SnapshotManifest
+from ..core.utils import compute_merkle_root, create_canonical_manifest
 
 class StorageManager:
     def __init__(self, store_path: str = "store"):
@@ -21,6 +21,22 @@ class StorageManager:
             with open(self.audit_file, 'a'):
                 pass
         print(f"Initialized repository at {self.base_path}")
+        
+    def save_chunk(self, chunk_hash: str, data: bytes) -> bool:
+        chunk_path = self.chunks_dir / chunk_hash
+        if chunk_path.exists():
+            return False
+        with open(chunk_path, 'wb') as f:
+            f.write(data)
+        return True
+
+    def save_manifest(self, manifest: SnapshotManifest) -> bool:
+        json_str = create_canonical_manifest(manifest)
+        filename = f"{manifest.snapshot_id}.json"
+        file_path = self.snapshots_dir / filename
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(json_str)
+        return True
 
     def get_chunk(self, chunk_hash: str) -> bytes:
         chunk_path = self.chunks_dir / chunk_hash

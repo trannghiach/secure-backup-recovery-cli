@@ -3,10 +3,11 @@ import time
 import hashlib
 from typing import List
 from ..contracts import FileEntry, SnapshotManifest
-from ..interfaces import IStorage
+# Thay Interface IStorage thành StorageManager
+# from ..interfaces import IStorage
+from .storage import StorageManager
 from ..config import CHUNK_SIZE
 from .utils import chunk_file_content, compute_merkle_root
-
 
 class BasicLogic:
     """A minimal ILogic-like implementation that relies on an external IStorage.
@@ -17,7 +18,8 @@ class BasicLogic:
     - verify_merkle(manifest): recompute merkle root from manifest and compare
     """
 
-    def __init__(self, storage: IStorage):
+# Sửa lại interace thành StorageManager
+    def __init__(self, storage: StorageManager):
         self.storage = storage
         self.chunk_size = CHUNK_SIZE
 
