@@ -4,6 +4,11 @@ users:
   operator_user: operator
   guest_user: auditor
 
+  # Specific users for test
+  iamncloud9: operator
+  LAPTOP-FHS3FP9B\ADMIN: admin
+  auditor: auditor
+
 roles:
   admin: [init, backup, list-snapshots, verify, restore, audit-verify]
   operator: [backup, list-snapshots, verify, restore, audit-verify]
