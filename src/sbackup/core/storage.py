@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from sbackup.contracts import OpResult
 from sbackup.core.utils import compute_merkle_root
 
-class Repository:
+class StorageManager:
     def __init__(self, store_path: str = "store"):
         self.base_path = (Path(__file__).parent.parent / store_path).resolve()
         self.chunks_dir = self.base_path / 'chunks'
