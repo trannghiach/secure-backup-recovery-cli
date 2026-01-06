@@ -8,43 +8,21 @@ from pathlib import Path
 # Thêm đường dẫn để import được các module cha (sbackup package)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sbackup.core.logic import BasicLogic
-from restore import Repository
-from sbackup.contracts import OpResult, SnapshotManifest
-from sbackup.core.utils import create_canonical_manifest
+from src.sbackup.core.logic import BasicLogic
+from src.sbackup.core.storage import StorageManager
 
 # --- CẤU HÌNH MẶC ĐỊNH ---
 TEST_ENV_DIR = Path("test_env")
 DEFAULT_SOURCE_DIR = TEST_ENV_DIR / "dataset"
-STORE_DIR = Path(__file__).parent.parent / "store"
+STORE_DIR = Path(__file__).parent.parent / "src" / "store"
 RESTORE_DIR = Path(__file__).parent / "restored"
 
 # Biến toàn cục lưu trạng thái phiên làm việc
 session_context = {
-    "source_dir": None,       # Thư mục gốc cần backup
-    "snapshot_id": None,      # ID của snapshot vừa tạo hoặc được chọn
-    "restore_dir": RESTORE_DIR # Thư mục sẽ restore ra
+    "source_dir": None,
+    "snapshot_id": None,
+    "restore_dir": RESTORE_DIR
 }
-
-class TestStorage(Repository):
-    """
-    Class mở rộng Repository để hỗ trợ việc GHI dữ liệu (Backup).
-    """
-    def save_chunk(self, chunk_hash: str, data: bytes) -> bool:
-        chunk_path = self.chunks_dir / chunk_hash
-        if chunk_path.exists():
-            return False
-        with open(chunk_path, 'wb') as f:
-            f.write(data)
-        return True
-
-    def save_manifest(self, manifest: SnapshotManifest) -> bool:
-        json_str = create_canonical_manifest(manifest)
-        filename = f"{manifest.snapshot_id}.json"
-        file_path = self.snapshots_dir / filename
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(json_str)
-        return True
 
 # --- CÁC HÀM HỖ TRỢ ---
 def create_dummy_data():
@@ -114,7 +92,7 @@ def step_setup():
     
     if choice == '2':
         path_str = input("Enter full path to folder to backup: ").strip()
-        path = Path(__file__).parent.parent / "restore" / path_str
+        path = Path(__file__).parent / path_str
         if not path.exists() or not path.is_dir():
             print("Error: Invalid path or not a directory.")
             return
@@ -137,7 +115,7 @@ def step_backup():
     label = input(f"Enter label for backup (default: 'manual-backup'): ").strip() or "manual-backup"
     
     # Init Storage
-    storage = TestStorage(str(STORE_DIR))
+    storage = StorageManager(str(STORE_DIR))
     storage.init()
     logic = BasicLogic(storage)
 
@@ -157,7 +135,7 @@ def step_restore():
     print("\n--- STEP 3: RESTORE ---")
     
     # Init Repo (Read-only)
-    repo = Repository(str(STORE_DIR))
+    repo = StorageManager(str(STORE_DIR))
     snapshots = repo.list_snapshots()
     
     if not snapshots:
@@ -260,7 +238,7 @@ def step_tamper():
         print("Tampering applied.")
         print("Attempting to restore tampered snapshot...")
         
-        repo = Repository(str(STORE_DIR))
+        repo = StorageManager(str(STORE_DIR))
         tamper_dst = TEST_ENV_DIR / "tampered_restore"
         result = repo.restore(snap_id, str(tamper_dst))
         

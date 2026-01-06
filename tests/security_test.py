@@ -1,25 +1,28 @@
 import sys
 import os
+from pathlib import Path
 
 # Đảm bảo import đúng cấu trúc project
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(str(Path(__file__).parent.parent))
 
-from policy import get_current_user, check_permission
-from audit import log_audit, verify_audit_log
+# from src.sbackup.security.policy import get_current_user, check_permission
+# from src.sbackup.security.audit import log_audit, verify_audit_log
+from src.sbackup.security.manager import SecurityManager
 
 if __name__ == "__main__":
+    security_mgr = SecurityManager()
     while True:
         print("=====================================================")
         choice = input("Choose an action: \n(1) Test Permission and Audit Log \n(2) Test Audit Log Verification \n(0) Exit\nEnter choice: ")
         
         if choice == '1':
             # Định danh
-            user = get_current_user()
+            user = security_mgr.get_current_user()
             print(f"Current OS user: {user}")
             command = input("Enter command (e.g., backup): ")
 
             # Check Policy
-            perm_result = check_permission(user, command)
+            perm_result = security_mgr.check_permission(user, command)
             
             status = ""
             if not perm_result.success:
@@ -33,7 +36,7 @@ if __name__ == "__main__":
 
             # Ghi Audit Log (Cập nhật logic OpResult)
             print(f"Appending to audit log with status: {status}...")
-            log_result = log_audit(user, command, status)
+            log_result = security_mgr.log_audit(user, command, status)
             
             if log_result.success:
                 print(f"Log saved. Hash: {log_result.data.get('entry_hash')}")
@@ -42,7 +45,7 @@ if __name__ == "__main__":
             
             # Verify audit ngay lập tức (Cập nhật logic OpResult)
             print("\n--- Running Audit Verification ---")
-            v_res = verify_audit_log()
+            v_res = security_mgr.verify_audit_log()
             if v_res.success:
                 print(f"Quick Verify: {v_res.message}")
             else:
@@ -50,7 +53,7 @@ if __name__ == "__main__":
 
         elif choice == '2':
             print("\n--- Audit Verification ---")
-            result = verify_audit_log()
+            result = security_mgr.verify_audit_log()
             
             if result.success:
                 print(f"AUDIT OK: {result.message}")
