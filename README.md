@@ -38,7 +38,7 @@ sbackup audit-verify        # Kiểm tra audit log
 ## 2. Chunk Size & Canonical Manifest
 
 ### Chunk Size
-- **Kích thước chunk:** 4KB (4096 bytes) - cấu hình trong `config.py`
+- **Kích thước chunk:** 1MB (1024 * 1024 bytes) - cấu hình trong `config.py`
 - File được chia thành các chunk, mỗi chunk được hash SHA-256
 - Chunk được lưu tại `store/chunks/<hash>`
 
@@ -73,20 +73,20 @@ File JSON tại `store/snapshots/<snapshot_id>.json`:
 ## 3. Cách tính Merkle Root
 
 ```
-1. Với mỗi file, tính: file_hash = SHA256(path + ":" + chunk1,chunk2,...)
-2. Sắp xếp file_hash theo thứ tự path
-3. Xây dựng Merkle Tree:
+1. Sắp xếp files theo path (alphabetical)
+2. Với mỗi file, tính: file_hash = SHA256(path + ":" + chunk1,chunk2,...)
+3. Xây dựng Merkle Tree từ danh sách file_hash:
    - Nếu lẻ node -> duplicate node cuối
-   - parent = SHA256(left + right)
-4. merkle_root = root của tree
+   - parent = SHA256(left_bytes + right_bytes)
+4. merkle_root = root của tree (hex string)
 ```
 
 **Ví dụ:**
 ```
-Files: a.txt (chunks: abc), b.txt (chunks: def)
-file_hash_a = SHA256("a.txt:abc")
+Files (đã sort): a.txt (chunks: abc), b.txt (chunks: def)
+file_hash_a = SHA256("a.txt:abc")  
 file_hash_b = SHA256("b.txt:def")
-merkle_root = SHA256(file_hash_a + file_hash_b)
+merkle_root = SHA256(bytes.fromhex(file_hash_a) + bytes.fromhex(file_hash_b)).hex()
 ```
 
 ---
@@ -117,13 +117,17 @@ python tests/real_test/test_wal_rollback.py
 ## 5. Journal/WAL (Write-Ahead Logging)
 
 ### Cơ chế
-File `store/wal.journal` ghi log trước khi ghi dữ liệu:
+File `store/journal.wal` ghi log trước khi ghi dữ liệu:
 
 ```
-BEGIN|<txn_id>|BACKUP|<timestamp>
-WRITE|<txn_id>|chunks/<hash>|<timestamp>
-WRITE|<txn_id>|snapshots/<id>.json|<timestamp>
-COMMIT|<txn_id>|SUCCESS|<timestamp>
+<timestamp> BEGIN <snapshot_id>
+<timestamp> COMMIT <snapshot_id>
+```
+
+**Ví dụ thực tế:**
+```
+1767775682318 BEGIN c953267d15dcd289688a748582c360b4661197130401037fb079d91310c8b424
+1767775682456 COMMIT c953267d15dcd289688a748582c360b4661197130401037fb079d91310c8b424
 ```
 
 ### Quy trình Backup
@@ -185,19 +189,29 @@ roles:
 ### Định dạng dòng
 
 ```
-<entry_hash> <prev_hash> <timestamp> <user> <command> <content_hash> <status>
+<entry_hash> <prev_hash> <timestamp> <user> <command> <args_hash> <status>
 ```
+
+- `entry_hash`: SHA256 của toàn bộ nội dung dòng (trừ chính nó)
+- `prev_hash`: entry_hash của dòng trước (dòng đầu = "0" * 64)
+- `timestamp`: Unix timestamp (milliseconds)
+- `user`: OS username (VD: `WORKGROUP\pwn3dBYf0q5`)
+- `command`: Tên lệnh (VD: `init`, `backup`)
+- `args_hash`: SHA256 của arguments (VD: hash của "data --label test")
+- `status`: `OK`, `FAIL`, hoặc `DENY`
 
 **Ví dụ:**
 ```
-92ca48c1... 00000000... 1767775682318 FOQS\Trong Nghia init 824d80d7... OK
-457ab29e... 92ca48c1... 1767775682786 FOQS\Trong Nghia backup e81411b0... DENY
+92ca48c1... 00000000... 1767775682318 WORKGROUP\pwn3dBYf0q5 init 824d80d7... OK
+457ab29e... 92ca48c1... 1767775682786 WORKGROUP\pwn3dBYf0q5 backup e81411b0... DENY
 ```
 
 ### Cách tính Hash (Hash Chain)
 
 ```python
-entry_hash = SHA256(prev_hash + timestamp + user + command + content_hash + status)
+content_to_hash = f"{prev_hash} {timestamp} {user} {command} {args_hash} {status}"
+entry_hash = SHA256(content_to_hash)
+log_line = f"{entry_hash} {content_to_hash}"
 ```
 
 - Dòng đầu: `prev_hash = "0" * 64`
@@ -269,7 +283,7 @@ python tests/real_test/test_audit_tamper.py # Test audit log
 store/
 ├── chunks/           # Các chunk dữ liệu (tên = SHA256)
 ├── snapshots/        # Manifest JSON (tên = merkle_root)
-├── wal.journal       # Write-Ahead Log
+├── journal.wal       # Write-Ahead Log
 └── audit.log         # Audit log (hash chain)
 
 src/sbackup/
