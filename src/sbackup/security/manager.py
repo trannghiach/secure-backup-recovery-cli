@@ -9,14 +9,10 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from ..contracts import OpResult
+from ..config import POLICY_FILE, get_audit_log_path
 
 # Import Interface
 from ..interfaces import ISecurity
-
-# Cấu hình đường dẫn (Hardcode tương đối)
-BASE_DIR = Path(__file__).parent.parent.parent.parent
-POLICY_PATH = BASE_DIR / 'policy.yaml'
-LOG_FILE_PATH = BASE_DIR / 'src' /'store' / 'audit.log'
 
 class SecurityManager:
     """
@@ -40,7 +36,9 @@ class SecurityManager:
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
 
-    def get_last_entry_hash(self, filepath=LOG_FILE_PATH):
+    def get_last_entry_hash(self, filepath=None):
+        if filepath is None:
+            filepath = get_audit_log_path()
         if not os.path.exists(filepath):
             return "0" * 64
         try:
@@ -56,7 +54,7 @@ class SecurityManager:
 
     def load_policy(self, policy_path: str = None) -> OpResult:
         if policy_path is None:
-            policy_path = str(POLICY_PATH)
+            policy_path = str(POLICY_FILE)
         
         if not os.path.exists(policy_path):
             return OpResult(success=False, message=f"Policy file not found at {policy_path}")
@@ -70,7 +68,7 @@ class SecurityManager:
 
     # --- PUBLIC INTERFACE (ISecurity Implementation) ---
 
-    def get_current_user(self) -> Optional[str]:
+    def get_current_user(self) -> str:
         system = platform.system()
         
         # Linux/Unix logic
@@ -90,7 +88,7 @@ class SecurityManager:
                 domain = os.environ.get('USERDOMAIN', 'ANONYMOUS')
                 return f"{domain}\\{username}"
             except Exception:
-                return None
+                return "unknown"
 
     def check_permission(self, user: str, cmd: str, policy_path: str = None) -> OpResult:
         if not user:
@@ -125,8 +123,10 @@ class SecurityManager:
                 message=f"Access Denied: Role '{user_role}' is not allowed to run '{command}'."
             )
 
-    def log_audit(self, user, full_command, status, filepath=LOG_FILE_PATH) -> OpResult:
+    def log_audit(self, user, full_command, status, filepath=None) -> OpResult:
         try:
+            if filepath is None:
+                filepath = get_audit_log_path()
             self._ensure_log_dir_exists(filepath)
 
             parts = full_command.strip().split()
@@ -152,7 +152,9 @@ class SecurityManager:
         except Exception as e:
             return OpResult(success=False, message=f"Error writing to audit log: {str(e)}")
 
-    def verify_audit_log(self, filepath=LOG_FILE_PATH) -> OpResult:
+    def verify_audit_log(self, filepath=None) -> OpResult:
+        if filepath is None:
+            filepath = get_audit_log_path()
         if not os.path.exists(filepath):
             return OpResult(success=False, message="Audit log file does not exist.")
 
