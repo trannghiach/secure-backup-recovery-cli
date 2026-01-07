@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 from ..contracts import FileEntry, OpResult, SnapshotManifest
 from ..core.utils import compute_merkle_root, create_canonical_manifest
+from ..core.wal import WALManager, atomic_write_file, atomic_write_bytes
+from ..config import WAL_ENABLED
 
 class StorageManager:
     def __init__(self, store_path: str = "store"):
@@ -13,6 +15,9 @@ class StorageManager:
         self.chunks_dir = self.base_path / 'chunks'
         self.snapshots_dir = self.base_path / "snapshots"
         self.audit_file = self.base_path / "audit.log"
+        
+        # WAL Manager
+        self.wal = WALManager(self.base_path) if WAL_ENABLED else None
 
     def init(self):
         os.makedirs(self.chunks_dir, exist_ok=True)
@@ -20,22 +25,41 @@ class StorageManager:
         if not self.audit_file.exists():
             with open(self.audit_file, 'a'):
                 pass
+        
+        # WAL Recovery: Kiểm tra và rollback các transaction bị crash
+        if self.wal:
+            recovered = self.wal.recover()
+            if recovered > 0:
+                print(f"WAL: Recovered {recovered} crashed transaction(s)")
+        
         print(f"Initialized repository at {self.base_path}")
+    
+    def begin_backup(self, snapshot_id: str) -> bool:
+        """Ghi WAL BEGIN trước khi bắt đầu backup."""
+        if self.wal:
+            return self.wal.begin_transaction(snapshot_id)
+        return True
+    
+    def commit_backup(self, snapshot_id: str) -> bool:
+        """Ghi WAL COMMIT sau khi backup hoàn tất."""
+        if self.wal:
+            return self.wal.commit_transaction(snapshot_id)
+        return True
         
     def save_chunk(self, chunk_hash: str, data: bytes) -> bool:
         chunk_path = self.chunks_dir / chunk_hash
         if chunk_path.exists():
             return False
-        with open(chunk_path, 'wb') as f:
-            f.write(data)
+        # Sử dụng atomic write cho chunk
+        atomic_write_bytes(chunk_path, data)
         return True
 
     def save_manifest(self, manifest: SnapshotManifest) -> bool:
         json_str = create_canonical_manifest(manifest)
         filename = f"{manifest.snapshot_id}.json"
         file_path = self.snapshots_dir / filename
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(json_str)
+        # Sử dụng atomic write cho manifest
+        atomic_write_file(file_path, json_str)
         return True
 
     def get_chunk(self, chunk_hash: str) -> bytes:

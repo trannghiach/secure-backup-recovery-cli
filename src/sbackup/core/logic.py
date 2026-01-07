@@ -68,7 +68,25 @@ class BasicLogic:
         manifest.snapshot_id = merkle
         return manifest
 
-    def verify_merkle(self, manifest: SnapshotManifest) -> bool:
+    def verify_merkle(self, manifest: SnapshotManifest, expected_snapshot_id: str = None) -> bool:
+        """
+        Kiểm tra tính toàn vẹn của snapshot.
+        
+        Kiểm tra 3 điều kiện:
+        1. snapshot_id trong manifest == expected_snapshot_id (filename)
+        2. merkle_root == snapshot_id (không bị sửa đổi riêng lẻ)
+        3. Tính toán lại merkle_root từ chunks == merkle_root trong manifest
+        """
+        # Kiểm tra 1: snapshot_id có khớp với filename không
+        if expected_snapshot_id and manifest.snapshot_id != expected_snapshot_id:
+            return False
+        
+        # Kiểm tra 2: merkle_root có khớp với snapshot_id không
+        # (vì snapshot_id được tạo từ merkle_root)
+        if manifest.merkle_root != manifest.snapshot_id:
+            return False
+        
+        # Kiểm tra 3: Tính toán lại merkle_root từ dữ liệu thực tế
         per_file_hashes: List[str] = []
         for f in sorted(manifest.files, key=lambda x: x.path):
             # Verify each chunk exists and its content matches the recorded hash

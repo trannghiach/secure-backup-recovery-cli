@@ -13,6 +13,11 @@ AUDIT_LOG_FILE = STORE_DIR / "audit.log"
 # Env var để override audit log path (dùng cho testing)
 AUDIT_LOG_ENV_VAR = "SBACKUP_AUDIT_LOG_PATH"
 
+# --- WAL (Write-Ahead Logging) ---
+WAL_JOURNAL_FILE = STORE_DIR / "journal.wal"
+# Bật/tắt WAL (mặc định bật)
+WAL_ENABLED = True
+
 # --- CHUNKING ---
 # Chunk size 1MB theo khuyến nghị
 CHUNK_SIZE = 1024 * 1024

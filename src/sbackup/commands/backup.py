@@ -43,13 +43,24 @@ def backup_cmd(
     print_banner(f"Backup Job: {source}")
     console.print(f"User: [cyan]{user}[/cyan] | Label: [yellow]{label}[/yellow]")
 
+    snapshot_id = None
     try:
         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
+            # Bước 1: Tính toán manifest trong RAM
             progress.add_task(description="Đang phân tích và cắt chunk...", total=None)
             manifest = logic.create_manifest(label, source)
+            snapshot_id = manifest.snapshot_id
             
+            # Bước 2: WAL BEGIN - Ghi log trước khi ghi đĩa
+            progress.add_task(description="Đang ghi WAL log...", total=None)
+            storage.begin_backup(snapshot_id)
+            
+            # Bước 3: Ghi manifest xuống đĩa
             progress.add_task(description="Đang ghi manifest...", total=None)
             storage.save_manifest(manifest)
+            
+            # Bước 4: WAL COMMIT - Đánh dấu hoàn tất
+            storage.commit_backup(snapshot_id)
 
         console.print(Panel(
             f"Snapshot ID: [bold green]{manifest.snapshot_id}[/bold green]\n"
@@ -62,6 +73,7 @@ def backup_cmd(
 
     except Exception as e:
         console.print(f"[bold red]✘ BACKUP FAILED:[/bold red] {e}")
+        # Nếu có snapshot_id nhưng chưa commit, WAL sẽ tự rollback khi init lần sau
         security.log_audit(user, command, "FAIL")
 
 
@@ -80,13 +92,13 @@ def verify_cmd(snapshot_id: str = typer.Argument(..., help="ID của snapshot c�
             return
 
         with console.status("[bold blue]Đang kiểm tra Hash & Merkle Tree...[/bold blue]"):
-            is_valid = logic.verify_merkle(manifest)
+            is_valid = logic.verify_merkle(manifest, expected_snapshot_id=snapshot_id)
 
         if is_valid:
             console.print(Panel("[bold green]✔ INTEGRITY CONFIRMED[/bold green]\nDữ liệu toàn vẹn, không bị sửa đổi.", border_style="green"))
             security.log_audit(user, command, "OK")
         else:
-            console.print(Panel("[bold red]✘ INTEGRITY CHECK FAILED[/bold red]\nCẢNH BÁO: Dữ liệu trên đĩa không khớp với Manifest (Merkle Root sai lệch).", border_style="red"))
+            console.print(Panel("[bold red]✘ INTEGRITY CHECK FAILED[/bold red]\nCẢNH BÁO: Dữ liệu trên đĩa không khớp với Manifest (Merkle Root sai lệch hoặc file bị tráo đổi).", border_style="red"))
             security.log_audit(user, command, "FAIL")
 
     except Exception as e:
