@@ -5,12 +5,17 @@ from rich.panel import Panel
 
 from ..core.storage import StorageManager
 from ..security.manager import SecurityManager
+from .. import config
 
 console = Console()
 
-# Khởi tạo các thành phần
-storage = StorageManager("store")
+# Khởi tạo các thành phần (storage sẽ được tạo lại động trong mỗi command)
 security = SecurityManager()
+
+
+def get_storage() -> StorageManager:
+    """Lấy StorageManager với store_path hiện tại."""
+    return StorageManager(config.CURRENT_STORE_PATH)
 
 
 def enforce_security(command: str) -> str:
@@ -28,14 +33,17 @@ def enforce_security(command: str) -> str:
 
 def init_cmd(store_path: str = typer.Argument("store", help="Tên thư mục lưu trữ")):
     """Khởi tạo kho backup (Init Store)."""
-    user = enforce_security("init " + store_path)
     command = f"init {store_path}"
+    user = enforce_security(command)
     
     try:
-        if store_path != "store":
-            storage.base_path = storage.base_path.parent / store_path
-            
+        # Cập nhật config toàn cục
+        config.set_store_path(store_path)
+        
+        # Tạo storage mới với store_path được chỉ định
+        storage = StorageManager(store_path)
         storage.init()
+        
         console.print(f"[green]✔ Khởi tạo thành công tại:[/green] [yellow]{storage.base_path}[/yellow]")
         security.log_audit(user, command, "OK")
         
@@ -50,6 +58,7 @@ def list_snapshots_cmd():
     user = enforce_security(command)
     
     try:
+        storage = get_storage()
         snapshots = storage.list_snapshots()
         
         table = Table(title=f"Danh sách Snapshot (Store: {storage.base_path.name})")

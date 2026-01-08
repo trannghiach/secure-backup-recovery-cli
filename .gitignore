@@ -1,8 +1,9 @@
 __pycache__/
 *.py[cod]
 .env
-.venv/
+*venv/
 # Project specific (Local test data)
 store/
 dataset/
 *.log
+sbackup.egg-info/
