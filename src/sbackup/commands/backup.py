@@ -59,6 +59,16 @@ def backup_cmd(
             progress.add_task(description="Đang ghi manifest...", total=None)
             storage.save_manifest(manifest)
             
+
+
+
+
+
+
+
+
+
+
             # Bước 4: WAL COMMIT - Đánh dấu hoàn tất
             storage.commit_backup(snapshot_id)
 

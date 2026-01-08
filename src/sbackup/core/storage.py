@@ -34,6 +34,36 @@ class StorageManager:
         
         print(f"Initialized repository at {self.base_path}")
     
+    def get_latest_snapshot_id(self) -> str:
+        """
+        Lấy snapshot_id mới nhất (theo created_at).
+        Dùng cho Hash Chain - snapshot mới cần chứa prev_snapshot_id.
+        
+        Returns:
+            snapshot_id mới nhất hoặc None nếu chưa có snapshot nào
+        """
+        snapshots = []
+        if not self.snapshots_dir.exists():
+            return None
+        
+        for f in self.snapshots_dir.glob("*.json"):
+            try:
+                with open(f, 'r', encoding='utf-8') as fp:
+                    data = json.load(fp)
+                    snapshots.append({
+                        'snapshot_id': data.get('snapshot_id'),
+                        'created_at': data.get('created_at', 0)
+                    })
+            except:
+                continue
+        
+        if not snapshots:
+            return None
+        
+        # Sort by created_at descending, return newest
+        snapshots.sort(key=lambda x: x['created_at'], reverse=True)
+        return snapshots[0]['snapshot_id']
+    
     def begin_backup(self, snapshot_id: str) -> bool:
         """Ghi WAL BEGIN trước khi bắt đầu backup."""
         if self.wal:
@@ -135,17 +165,24 @@ class StorageManager:
     #         return False
     
     def _verify_snapshot_integrity(self, manifest: SnapshotManifest) -> bool:
-        # --- [FIX] Dùng Attributes của Object ---
+        # --- [FIX] Dùng Attributes của Object + Metadata Hash ---
         try:
             # Sort files theo path (giống logic tạo)
             sorted_files = sorted(manifest.files, key=lambda x: x.path)
             
-            per_file_hashes = []
+            all_hashes = []
+            
+            # 1. Hash metadata (phải khớp với lúc tạo)
+            metadata_str = f"{manifest.version}:{manifest.label}:{manifest.created_at}:{manifest.prev_snapshot_id or ''}"
+            metadata_hash = hashlib.sha256(metadata_str.encode("utf-8")).hexdigest()
+            all_hashes.append(metadata_hash)
+            
+            # 2. Hash từng file
             for f in sorted_files:
                 s = f.path + ":" + ",".join(f.chunks)
-                per_file_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
+                all_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
 
-            computed_root = compute_merkle_root(per_file_hashes)
+            computed_root = compute_merkle_root(all_hashes)
             return computed_root == manifest.merkle_root
         except Exception as e:
             print(f"[VERIFY ERROR] {e}")

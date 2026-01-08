@@ -55,15 +55,35 @@ class BasicLogic:
                 files.append(FileEntry(path=rel, size=stat.st_size, mtime=stat.st_mtime, chunks=chunks))
 
         files.sort(key=lambda f: f.path)
-        manifest = SnapshotManifest(version="1.0", snapshot_id="", created_at=int(time.time() * 1000), label=label, files=files, merkle_root="")
+        
+        # Hash Chain: Lấy prev_snapshot_id từ snapshot mới nhất
+        prev_snapshot_id = self.storage.get_latest_snapshot_id()
+        
+        manifest = SnapshotManifest(
+            version="1.0", 
+            snapshot_id="", 
+            created_at=int(time.time() * 1000), 
+            label=label, 
+            files=files, 
+            merkle_root="",
+            prev_snapshot_id=prev_snapshot_id  # Hash Chain
+        )
 
         # Compute per-file hashes and Merkle root
-        per_file_hashes: List[str] = []
+        # Bao gồm cả metadata để detect tampering
+        all_hashes: List[str] = []
+        
+        # 1. Hash metadata (version, label, created_at, prev_snapshot_id)
+        metadata_str = f"{manifest.version}:{manifest.label}:{manifest.created_at}:{manifest.prev_snapshot_id or ''}"
+        metadata_hash = hashlib.sha256(metadata_str.encode("utf-8")).hexdigest()
+        all_hashes.append(metadata_hash)
+        
+        # 2. Hash từng file (path + chunks)
         for f in manifest.files:
             s = f.path + ":" + ",".join(f.chunks)
-            per_file_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
+            all_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
 
-        merkle = compute_merkle_root(per_file_hashes)
+        merkle = compute_merkle_root(all_hashes)
         manifest.merkle_root = merkle
         manifest.snapshot_id = merkle
         return manifest
@@ -72,10 +92,11 @@ class BasicLogic:
         """
         Kiểm tra tính toàn vẹn của snapshot.
         
-        Kiểm tra 3 điều kiện:
+        Kiểm tra 4 điều kiện:
         1. snapshot_id trong manifest == expected_snapshot_id (filename)
         2. merkle_root == snapshot_id (không bị sửa đổi riêng lẻ)
         3. Tính toán lại merkle_root từ chunks == merkle_root trong manifest
+        4. Hash Chain: prev_snapshot_id phải tồn tại (nếu không phải snapshot đầu tiên)
         """
         # Kiểm tra 1: snapshot_id có khớp với filename không
         if expected_snapshot_id and manifest.snapshot_id != expected_snapshot_id:
@@ -87,7 +108,15 @@ class BasicLogic:
             return False
         
         # Kiểm tra 3: Tính toán lại merkle_root từ dữ liệu thực tế
-        per_file_hashes: List[str] = []
+        # Bao gồm cả metadata để detect tampering
+        all_hashes: List[str] = []
+        
+        # 3a. Hash metadata (phải khớp với lúc tạo)
+        metadata_str = f"{manifest.version}:{manifest.label}:{manifest.created_at}:{manifest.prev_snapshot_id or ''}"
+        metadata_hash = hashlib.sha256(metadata_str.encode("utf-8")).hexdigest()
+        all_hashes.append(metadata_hash)
+        
+        # 3b. Hash từng file và verify chunks
         for f in sorted(manifest.files, key=lambda x: x.path):
             # Verify each chunk exists and its content matches the recorded hash
             for ch in f.chunks:
@@ -99,7 +128,18 @@ class BasicLogic:
                     return False
 
             s = f.path + ":" + ",".join(f.chunks)
-            per_file_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
+            all_hashes.append(hashlib.sha256(s.encode("utf-8")).hexdigest())
 
-        computed = compute_merkle_root(per_file_hashes)
-        return computed == manifest.merkle_root
+        computed = compute_merkle_root(all_hashes)
+        if computed != manifest.merkle_root:
+            return False
+        
+        # Kiểm tra 4: Hash Chain - prev_snapshot_id phải tồn tại (nếu có)
+        if manifest.prev_snapshot_id:
+            try:
+                self.storage.load_manifest(manifest.prev_snapshot_id)
+            except FileNotFoundError:
+                # prev_snapshot bị xóa = ROLLBACK ATTACK!
+                return False
+        
+        return True

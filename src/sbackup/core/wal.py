@@ -199,6 +199,10 @@ class WALManager:
         
         if rollback_count > 0:
             console.print(f"[green]✔ WAL Recovery: Đã rollback {rollback_count} transaction[/green]")
+            # Xóa WAL sau khi đã rollback tất cả - không còn transaction nào cần theo dõi
+            if self.journal_path.exists():
+                self.journal_path.unlink()
+                console.print(f"[green]   -> Đã dọn dẹp WAL journal[/green]")
         
         return rollback_count
     

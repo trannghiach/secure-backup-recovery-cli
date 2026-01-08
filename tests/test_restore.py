@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 # --- CẤU HÌNH ---
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SANDBOX_DIR = PROJECT_ROOT / "tests" / "sandbox_restore"
 AUDIT_LOG_PATH = SANDBOX_DIR / "store" / "audit.log"
 CLI_CMD = [sys.executable, "-m", "src.sbackup.main"]

@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 # --- CẤU HÌNH ---
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # Lên 2 cấp: real_test -> tests -> LabCLI
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  # Lên 1 cấp: tests -> LabCLI
 SANDBOX_DIR = PROJECT_ROOT / "tests" / "sandbox_audit"
 # Audit log sẽ được ghi vào sandbox khi test (qua env var)
 AUDIT_LOG_PATH = SANDBOX_DIR / "store" / "audit.log"
