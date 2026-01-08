@@ -70,7 +70,6 @@ class SecurityManager:
 
     def get_current_user(self) -> str:
         system = platform.system()
-        
         # Linux/Unix logic
         if system in ('Linux', 'Darwin'):
             try:
@@ -78,6 +77,7 @@ class SecurityManager:
                 sudo_user = os.environ.get('SUDO_USER')
                 if sudo_user: return sudo_user
                 if current_uid == 0: return 'SUDO_ROOT'
+                return getpass.getuser()
             except (ImportError, AttributeError):
                 pass
         
@@ -151,6 +151,24 @@ class SecurityManager:
 
         except Exception as e:
             return OpResult(success=False, message=f"Error writing to audit log: {str(e)}")
+
+    def log_invalid_command(self, argv_parts: list, error: str = None) -> OpResult:
+        """Ghi log cho các lệnh không hợp lệ (unknown command)."""
+        try:
+            user = self.get_current_user()
+            command_str = " ".join(argv_parts)
+            
+            # Kiểm tra xem có phải lệnh không hợp lệ không
+            valid_commands = ["init", "backup", "list-snapshots", "verify", "restore", "audit-verify"]
+            
+            if argv_parts and argv_parts[0] not in valid_commands and not argv_parts[0].startswith("-"):
+                # Đây là lệnh không hợp lệ - ghi log FAIL
+                return self.log_audit(user, command_str, "FAIL")
+            
+            return OpResult(success=True, message="Not an invalid command")
+            
+        except Exception as e:
+            return OpResult(success=False, message=f"Error logging invalid command: {str(e)}")
 
     def verify_audit_log(self, filepath=None) -> OpResult:
         if filepath is None:

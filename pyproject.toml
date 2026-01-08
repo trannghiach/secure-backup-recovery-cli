@@ -20,7 +20,7 @@ dependencies = [
 
 # [QUAN TRỌNG] Tạo lệnh 'sbackup' trong terminal
 [project.scripts]
-sbackup = "sbackup.main:app"
+sbackup = "sbackup.main:main"
 
 # Cấu hình để pip tự tìm thấy code trong folder src
 [tool.setuptools.packages.find]
