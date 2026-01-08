@@ -1,4 +1,5 @@
 import typer
+import os
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -6,13 +7,19 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from ..core.storage import StorageManager
 from ..core.logic import BasicLogic
 from ..security.manager import SecurityManager
+from .. import config
 
 console = Console()
 
-# Khởi tạo các thành phần
-storage = StorageManager("store")
-logic = BasicLogic(storage)
+# Khởi tạo security (storage sẽ được tạo động)
 security = SecurityManager()
+
+
+def get_storage_and_logic():
+    """Lấy StorageManager và BasicLogic với store_path hiện tại."""
+    storage = StorageManager(config.CURRENT_STORE_PATH)
+    logic = BasicLogic(storage)
+    return storage, logic
 
 
 def enforce_security(command: str) -> str:
@@ -43,6 +50,28 @@ def backup_cmd(
     print_banner(f"Backup Job: {source}")
     console.print(f"User: [cyan]{user}[/cyan] | Label: [yellow]{label}[/yellow]")
 
+    # VALIDATION: Kiểm tra source path có tồn tại không
+    if not os.path.exists(source):
+        console.print(Panel(
+            f"[bold red]✘ BACKUP FAILED[/bold red]\n"
+            f"Path không tồn tại: {source}",
+            border_style="red"
+        ))
+        security.log_audit(user, command, "FAIL")
+        raise typer.Exit(code=1)
+    
+    if not os.path.isdir(source):
+        console.print(Panel(
+            f"[bold red]✘ BACKUP FAILED[/bold red]\n"
+            f"Path phải là thư mục, không phải file: {source}",
+            border_style="red"
+        ))
+        security.log_audit(user, command, "FAIL")
+        raise typer.Exit(code=1)
+
+    # Lấy storage và logic với store_path hiện tại
+    storage, logic = get_storage_and_logic()
+    
     snapshot_id = None
     try:
         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
@@ -93,6 +122,9 @@ def verify_cmd(snapshot_id: str = typer.Argument(..., help="ID của snapshot c�
     user = enforce_security(command)
     print_banner(f"Verifying Snapshot: {snapshot_id}")
 
+    # Lấy storage và logic với store_path hiện tại
+    storage, logic = get_storage_and_logic()
+
     try:
         try:
             manifest = storage.load_manifest(snapshot_id)
@@ -125,6 +157,9 @@ def restore_cmd(
     user = enforce_security(command)
     print_banner(f"Restore: {snapshot_id} -> {target}")
 
+    # Lấy storage với store_path hiện tại
+    storage, _ = get_storage_and_logic()
+    
     result = storage.restore(snapshot_id, target)
 
     if result.success:

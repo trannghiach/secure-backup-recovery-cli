@@ -45,6 +45,13 @@ class BasicLogic:
         return hashes
 
     def create_manifest(self, label: str, root_path: str) -> SnapshotManifest:
+        # Validation: Kiểm tra path tồn tại
+        if not os.path.exists(root_path):
+            raise FileNotFoundError(f"Path không tồn tại: {root_path}")
+        
+        if not os.path.isdir(root_path):
+            raise NotADirectoryError(f"Path phải là thư mục: {root_path}")
+        
         files: List[FileEntry] = []
         for dirpath, _, filenames in os.walk(root_path):
             for fn in filenames:
