@@ -22,7 +22,7 @@ def setup_environment():
     if SANDBOX_DIR.exists():
         try: shutil.rmtree(SANDBOX_DIR)
         except: pass
-    SANDBOX_DIR.mkdir(parents=True, exist_ok=True)
+    SANDBOX_DIR.mkdir(parents=True, exist_ok=True) 
     # Đảm bảo thư mục store tồn tại cho audit log
     (SANDBOX_DIR / "store").mkdir(parents=True, exist_ok=True)
     # Copy policy.yaml vào sandbox
