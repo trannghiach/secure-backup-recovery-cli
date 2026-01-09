@@ -98,6 +98,8 @@ def backup_cmd(
 
 
 
+
+
             # Bước 4: WAL COMMIT - Đánh dấu hoàn tất
             storage.commit_backup(snapshot_id)
 

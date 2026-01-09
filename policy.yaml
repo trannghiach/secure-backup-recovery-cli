@@ -1,13 +1,8 @@
 users:
-  # Thay tên này bằng tên user máy tính của các bạn để test
+  # Thay tên này bằng tên user máy tính để test
   admin_user: admin
   operator_user: operator
   guest_user: auditor
-
-  # Specific users for test
-  iamncloud9: operator
-  LAPTOP-FHS3FP9B\ADMIN: admin
-  auditor: auditor
   FOQS\Trong Nghia: admin
 
 roles:
